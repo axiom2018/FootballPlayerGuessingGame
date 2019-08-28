@@ -1,0 +1,9 @@
+*.o
+/obj/Debug/
+/bin/
+CpuSmartStringGuess.c.save-failed
+DisplayString.h.save-failed
+FootballPlayerGuessingGame.cbp
+FootballPlayerGuessingGame.cscope_file_list
+FootballPlayerGuessingGame.depend
+FootballPlayerGuessingGame.layout
