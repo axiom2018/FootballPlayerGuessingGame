@@ -39,7 +39,7 @@ Return the players points.
 
 Standard part of the abstract data type in c is to have a function to destroy the pointer to prevent memory leakage.
 
- */
+*/
 
 typedef struct Player * PlayerPtr;
 

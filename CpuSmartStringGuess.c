@@ -1,6 +1,8 @@
 #ifndef CPUSMARTSTRINGGUESS_C_INCLUDED
 #define CPUSMARTSTRINGGUESS_C_INCLUDED
 #include "CpuSmartStringGuess.h"
+#include "VowelManager.h"
+#include "MergeSort.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,8 +11,6 @@
 #include <time.h>
 
 // All definitions needed for static variables.
-#define VOWELS_ROWS 2
-#define VOWELS_COLUMNS 5
 #define TIMER_DEFAULT 90000000
 
 /**
@@ -102,6 +102,16 @@ Also it'll be altered, decremented by a 4th or 6th of itself.
 Ties into the algorithm in #8, this will be the amount we decrement customMax while trying to get a random value.
 
 
+11) Reasoning for VowelManagerPtr:
+
+Pointer for the vowel manager.
+
+
+12) Reasoning for MergeSortPtr:
+
+Pointer for the merge sort algorithm.
+
+
 
 
 
@@ -121,70 +131,49 @@ be able to guess the entire string on a few characters. If we're guessing cars, 
 M e _ _ e _ e _. Maybe right now you can tell it's Mercedes. So after a certain amount of correct guesses. The cpu can then actually tackle the real string.
 
 
-3) Reasoning for s_lastPosition:
-
-Used in VowelBinarySearch function, when we force the cpu to go for vowels and it originally picks some random characters like "z", we know searching
-for vowels with a character like "z", we'll fail, BUT, we save the last position or last index of the search and switch it to the vowel. Pretty interesting
-way to go about it.
-
-
-4) Reasoning for s_vowels:
-
-Keep track of what vowels were currently used.
-
-
-5) Reasoning for s_rows:
+3) Reasoning for s_rows:
 
 The rows in the dynamic array are 2. Only because we'll have all the integer values of characters in row 1, and whether we've use them (a true or false sort of
 thing).
 
 
-6) Reasoning for s_spaceIndicator:
+4) Reasoning for s_spaceIndicator:
 
 This helps us determine if there was a space in the string, if so, we basically ignore it.
 
 
-7) Reasoning for s_spaces:
+5) Reasoning for s_spaces:
 
 On the ascii table, 32 is the numerical value of a space, once we detect one, we increment spaces to skip and also assign a space indicator in that index.
 
 
-8) Reasoning for s_preTimer & s_postTimer:
+6) Reasoning for s_preTimer & s_postTimer:
 
 These help the cpu wait before it rushes onto the next part of the code.
 
 
-9) Reasoning for s_minChar & s_maxChar:
+7) Reasoning for s_minChar & s_maxChar:
 
 Helps the initial function to get a cpu key get one that is lowercase.
 
 
-10) Reasoning for s_randRange:
+8) Reasoning for s_randRange:
 
 Use this float for a more accurate range of floating point numbers in the GuessFromString function.
 
 
-11) Reasoning for s_lowerBegin & s_lowerEnd:
+9) Reasoning for s_lowerBegin & s_lowerEnd:
 
 Used in update to get proper range.
 
 
-12) Reasoning for s_e/i/o/uKey:
+10) Reasoning for s_e/i/o/uKey:
 
 These will be checked in the update function if StringBinarySearch does NOT find a vowel that the cpu can input. No a key necessary since that's taken care of by s_lowerBegin.
-
-
-13) Reasoning for s_vowelArraySize:
-
-All the main vowels are of course a, e, i, o, u. That's why this is 5 and used in vowel binary search.
-
-
 
 */
 
 static const int s_minGuesses = 3;
-static int s_lastPosition = -1;
-static int s_vowels[VOWELS_ROWS][VOWELS_COLUMNS];
 static const int s_rows = 2;
 static const int s_spaceIndicator = -1;
 static const int s_spaces = 32;
@@ -199,7 +188,6 @@ static const int s_eKey = 101;
 static const int s_iKey = 105;
 static const int s_oKey = 111;
 static const int s_uKey = 117;
-static const int s_vowelArraySize = 5;
 
 struct CpuSmartGuess
 {
@@ -214,6 +202,8 @@ struct CpuSmartGuess
     int m_stringSize;
     float m_randomCharMaxRange;
     float m_decrementAmount;
+    VowelManagerPtr m_pVowelManager;
+    MergeSortPtr m_pMergeSort;
 };
 
 /** O(n). When we must update the stringToSort double pointer in the struct due to cpu guessing correctly, we'll do it here. Why even do that? Let's say we had the name
@@ -269,35 +259,6 @@ static char CSGP_GetCpuInput(CpuSmartGuessPtr csgp)
 
     // Return the character.
     return c;
-}
-
-// Let's see if the cpu already guessed the character "e",
-static void UpdateCharacterUse(CpuSmartGuessPtr csgp, char * pLetter)
-{
-    // Run a loop, there's a certain condition we need to meet to break it.
-    while(true)
-    {
-        // The last position held the last place from the vowels search, save that letter here.
-        *pLetter = (char)s_vowels[0][s_lastPosition];
-
-        // IF that letter was already used, we'll have to find another one.
-        if(s_vowels[1][s_lastPosition] == 1)
-        {
-            // Get random in the array.
-            s_lastPosition = (rand() % VOWELS_COLUMNS) + 0;
-
-            // If it is in fact 1, continue, but with new last position spot.
-            continue;
-        }
-
-        else
-        {
-            // Set the entry to true!
-            s_vowels[1][s_lastPosition] = true;
-
-            break;
-        }
-    }
 }
 
 // O(n). This function just checks to see if the random character selected by the cpu is already in use. This process helps us get no repeats.
@@ -358,50 +319,6 @@ static void GuessFromString(CpuSmartGuessPtr csgp, char * pLetter)
     }
 }
 
-// O(log n). Be able to take an integer character that we KNOW is likely not here but still match it to a close vowel so the cpu can use.
-static int VowelBinarySearch(CpuSmartGuessPtr csgp, const int searchValue)
-{
-    // Set low.
-    int low = 0;
-
-    // Set high.
-    int high = s_vowelArraySize - 1;
-
-    int index = -1;
-
-    // While low is less than high because otherwise we've ran out of space to search.
-    while(low <= high)
-    {
-        // Calculate the midpoint the same way we'd do in say, merge sort.
-        int midpoint = (low + high) / 2;
-
-        // If search value is at this midpoint, we found it!
-        if(searchValue == s_vowels[0][midpoint])
-        {
-            index = midpoint;
-            // printf("Index: %d\n", index);
-            return index;
-        }
-
-        // If search value is lesser, alter high and save the last position.
-        else if(searchValue < s_vowels[0][midpoint])
-        {
-            high = midpoint - 1;
-            s_lastPosition = high;
-        }
-
-        // If search value is greater, alter low and save the last position.
-        else if(searchValue > s_vowels[0][midpoint])
-        {
-            low = midpoint + 1;
-            s_lastPosition = low;
-        }
-    }
-
-    // Return false if index of character is not found. This is due to bad input from argument.
-    return -1;
-}
-
 // O(n). When the cpu runs out of guesses, we need to reset certain things.
 static void CSGP_WipeData(CpuSmartGuessPtr csgp)
 {
@@ -433,38 +350,8 @@ static void CSGP_WipeData(CpuSmartGuessPtr csgp)
     csgp->m_randomCharMaxRange = 0.0f;
     csgp->m_decrementAmount = 0.0f;
 
-    // Reset the active states in the vowel arrays.
-    for(int i = 0; i < VOWELS_COLUMNS; ++i)
-    {
-        s_vowels[1][i] = 0;
-    }
-}
-
-// O(n^2). worst/average case. Run insertion sort on the string because we'll help the cpu get "ranges" of where to guess.
-static void InsertionSort(CpuSmartGuessPtr csgp)
-{
-    // Loop.
-    for(int i = 1; i < csgp->m_xSize; ++i)
-    {
-        // Grab the key with the loop variable i.
-        int key = csgp->m_ppStringToSort[0][i];
-
-        // Get the previous index since this is a backtracking algorithm.
-        int j = i - 1;
-
-        // Check if j is still within array range (0 to n) and the value behind key is greater.
-        while(j >= 0 && csgp->m_ppStringToSort[0][j] > key)
-        {
-            // Set what's in FRONT of j, TO j.
-            csgp->m_ppStringToSort[0][j + 1] = csgp->m_ppStringToSort[0][j];
-
-            // Decrement.
-            j = j - 1;
-        }
-
-        // Put the old key back in the array.
-        csgp->m_ppStringToSort[0][j + 1] = key;
-    }
+    // Set all vowels to unused.
+    FullReset(csgp->m_pVowelManager);
 }
 
 // O(n) + memory allocation. Allocate the 2d array needed for the cpu turn.
@@ -535,9 +422,6 @@ static void Allocate2dArray(CpuSmartGuessPtr csgp, const char * pString)
 
     // Set the decrement amount by calculating the fourth of the random char max range.
     csgp->m_decrementAmount = csgp->m_randomCharMaxRange / 4.0f;
-
-    // Use insertion sort to sort the 2d arrays integers.
-    InsertionSort(csgp);
 }
 
 // In order for the cpu to have LESS of a chance entering a random character despite it "knowing" the string already, decrementing the range lesses the chance of that.
@@ -563,55 +447,6 @@ static void DecrementRandomMaxRange(CpuSmartGuessPtr csgp)
         // If it's not 0, then set the max to the value above. Ex: If max is 2, and the decrement amount if 0.3, result will be 1.7.
         csgp->m_randomCharMaxRange = value;
     }
-}
-
-// O(n log n). This binary search is to help determine if vowels are still available in the stringToSort. If so, we can make accurate guesses, if not, we'll have to adjust.
-static int StringBinarySearch(CpuSmartGuessPtr csgp)
-{
-    // Start off by looping over the s_vowels array.
-    for(int i = 0; i < VOWELS_COLUMNS; ++i)
-    {
-        // Get the value of the vowel in the array.
-        int value = s_vowels[0][i];
-
-        // Set low.
-        int low = 0;
-
-        // Set high.
-        int high = csgp->m_xSize - 1;
-
-        // While low is less than high because otherwise we've ran out of space to search.
-        while(low <= high)
-        {
-            // Calculate the midpoint the same way we'd do in say, merge sort.
-            int midpoint = (low + high) / 2;
-
-            // printf("Value: %d. Low: %d. High: %d. Midpoint: %d.\n", value, low, high, midpoint);
-
-            // If search value is at this midpoint, that's one half, then check this vowel still has a false value. Indicating we have not used it yet.
-            if(value == csgp->m_ppStringToSort[0][midpoint] && csgp->m_ppStringToSort[1][midpoint] == 0)
-            {
-                // If we found one and haven't used it yet, great! We can return true because we still have vowels available.
-                return true;
-            }
-
-            else if(value < csgp->m_ppStringToSort[0][midpoint])
-            {
-                high = midpoint - 1;
-                continue;
-            }
-
-            else if(value > csgp->m_ppStringToSort[0][midpoint])
-            {
-                low = midpoint + 1;
-                continue;
-            }
-
-            break;
-        }
-    }
-
-    return false;
 }
 
 CpuSmartGuessPtr CSGP_Init(char * pString)
@@ -659,39 +494,37 @@ CpuSmartGuessPtr CSGP_Init(char * pString)
         // Allocate memory for 2d array.
         Allocate2dArray(pSgp, pString);
 
-        /** We need to use this 2d array for checking vowels. It makes it very simple to check whether a vowel has already been used or not, and if so, get another one.
-        We initialize the first row like this because the characters integers aren't in a linear fashion. */
-        s_vowels[0][0] = 'a';
-        s_vowels[0][1] = 'e';
-        s_vowels[0][2] = 'i';
-        s_vowels[0][3] = 'o';
-        s_vowels[0][4] = 'u';
+        // Allocate memory for vowel manager. It'll take care of our vowel guessing business.
+        pSgp->m_pVowelManager = VowelManager_Init(pSgp->m_xSize, pSgp->m_ppStringToSort);
 
-        /** Now this step takes care of getting the "active" states ready in the other row. They're basically booleans, 1's and 0's. If there is a 1, we already used this
-        particular vowel this time around. If it's 0, we did not use it. */
-        for(int i = 0; i < VOWELS_COLUMNS; ++i)
+        // Allocate memory for merge sort.
+        pSgp->m_pMergeSort = MergeSort_Init(pSgp->m_xSize, pSgp->m_ppStringToSort);
+
+        /**
+        printf("Printing!\n");
+        for(int i = 0; i < pSgp->m_xSize; ++i)
         {
-            s_vowels[1][i] = 0;
+            printf("%d ", pSgp->m_ppStringToSort[0][i]);
         }
+        */
+
+        // Use merge sort here.
+        MergeSort_Sort(pSgp->m_pMergeSort, pSgp->m_ppStringToSort, 0, pSgp->m_xSize - 1);
+
+        /**
+        printf("\nFINAL PRINT AFTER MERGE SORT!\n");
+        for(int i = 0; i < pSgp->m_xSize; ++i)
+        {
+            printf("%d ", pSgp->m_ppStringToSort[0][i]);
+        }
+        printf("\n");
+        */
     }
 
     // Return the sgp.
     return pSgp;
 }
 
-/** Get input for cpu. The letter comes from the CpuInput.c function called GetCpuInput.
-O(n) - Best case, because once the minimum guesses is reached, we'll be using guess from string function, which is an O(n) function.
-
-O(n) - Average case. Why is it average? Because the minimum guesses is 3, the first if statement will only run for an average of 3 times.
-(Give or take because the cpu MIGHT still get a character wrong despite it even starting out with vowels.) But once it does exhaust vowels
-and reaches past the minimum guesses (this will happen more than not in the game), we'll begin using the guess from string function.
-
-O(n log n) - Worst case. O(n log n)  + O(log n) + O(n) is the FULL version. This is weird but I believe accurate. This will take the most time
-if StringBinarySearch is NOT false, so IT'S runtime of n log n is already done and through. Then we go to VowelBinarySearch and that's log n,
-factor that in as well. The function VowelBinarySearch might or might not be true but regardless, UpdateCharacterUse will run and that's O(n).
-Asymptotic notation makes us drop the low ordered terms, so we're left with O(n log n) being the worst case scenario.
-
-*/
 char CSGP_Update(CpuSmartGuessPtr csgp)
 {
     // Get letter from initial function.
@@ -704,7 +537,7 @@ char CSGP_Update(CpuSmartGuessPtr csgp)
     if(csgp->m_currentGuesses < s_minGuesses)
     {
         /** This helps the cpu be able to still make guesses without enough vowels to make the "easy" guesses I could say. For example take literally any
-        string right now. One preferably with 1 or 2 vowels. We can take "Eden Hazard" for example. Only has vowels a and e. So at BEST the old  algorithm
+        string right now. One preferably with 1 or 2 vowels. We can take "Eden Hazard" for example. Only has vowels a and e. So at BEST the old algorithm
         could get those 2 but it'll still TRY to use the remaining vowels despite none being available in the string. That's where we improvise and begin
         choosing at random in order to get to the minimum number of 3 for the cpu to guess the entire string.
 
@@ -713,7 +546,7 @@ char CSGP_Update(CpuSmartGuessPtr csgp)
 
         The string binary search works in O(n log n). to see if we have vowels to pull from the string. It's possible there will be none. And if there's none
         we will get a random character and throw it as our guess. */
-        if(!StringBinarySearch(csgp))
+        if(!StringBinarySearch(csgp->m_pVowelManager))
         {
             // It's false, so that means we're out of vowels to choose or there were none present. Set another variable because we'll get ourselves a random letter now.
             int value = 0;
@@ -730,15 +563,14 @@ char CSGP_Update(CpuSmartGuessPtr csgp)
                 UpdateStringToSort(csgp, letter);
 
             } while(value == s_lowerBegin || value == s_eKey || value == s_iKey || value == s_oKey || value == s_uKey);
-
         }
 
         /** The char argument passed was a vowel, great, in these types of games humans almost always start with vowels to give hints on the entire string.
         So the function VowelBinarySearch checks if it was a vowel that we received. */
-        else if(VowelBinarySearch(csgp, (int)letter) > -1)
+        else if(VowelBinarySearch(csgp->m_pVowelManager, (int)letter) > -1)
         {
             // Set the character in the array to true.
-            UpdateCharacterUse(csgp, &letter);
+            UpdateCharacterUse(csgp->m_pVowelManager, &letter);
 
             // Set the previously entered character for later IF it's the correct character to update the string to sort.
             csgp->m_previouslyEnteredChar = letter;
@@ -746,14 +578,10 @@ char CSGP_Update(CpuSmartGuessPtr csgp)
 
         else
         {
-            // If the last position is out of bounds that means the search didn't work. Char AFTER u was inserted.
-            if(s_lastPosition >= VOWELS_COLUMNS)
-            {
-                s_lastPosition = 4;
-            }
+            LastPositionOutOfBounds(csgp->m_pVowelManager);
 
             // Set the character in the array to true.
-            UpdateCharacterUse(csgp, &letter);
+            UpdateCharacterUse(csgp->m_pVowelManager, &letter);
 
             // Set the previously entered character for later IF it's the correct character to update the string to sort.
             csgp->m_previouslyEnteredChar = letter;
@@ -772,7 +600,6 @@ char CSGP_Update(CpuSmartGuessPtr csgp)
     }
 
     // Display what the cpu chose.
-    printf("Cpu chooses %c!\n", letter);
     printf("Press (enter) to continue.\n");
     getchar();
 
@@ -814,6 +641,12 @@ void CSGP_SetData(CpuSmartGuessPtr csgp, char * pString)
 
     // Allocate memory for 2d array.
     Allocate2dArray(csgp, pString);
+
+    // Sort out the new string.
+    MergeSort_Sort(csgp->m_pMergeSort, csgp->m_ppStringToSort, 0, csgp->m_xSize - 1);
+
+    // Update the vowel manager with this function regarding the size of the string and also the string we'll be working with.
+    UpdateSizeAndString(csgp->m_pVowelManager, csgp->m_xSize, csgp->m_ppStringToSort);
 }
 
 void CSGP_Destroy(CpuSmartGuessPtr csgp)
@@ -840,6 +673,12 @@ void CSGP_Destroy(CpuSmartGuessPtr csgp)
         free(csgp->m_ppStringToSort);
         csgp->m_ppStringToSort = NULL;
     }
+
+    // Delete the hash.
+    VowelManager_Destroy(csgp->m_pVowelManager);
+
+    // And the merge sort pointer.
+    MergeSort_Destroy(csgp->m_pMergeSort);
 
     // Delete self.
     free(csgp);
